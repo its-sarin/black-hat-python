@@ -32,6 +32,15 @@ class IP:
             print('%s No protocol for %s' % (e, self.protocol_num))
             self.protocol = str(self.protocol_num)
 
+class ICMP:
+    def __init__(self, buff):
+        header = struct.unpack('<BBHHH', buff)
+        self.type = header[0]
+        self.code = header[1]
+        self.sum = header[2]
+        self.id = header[3]
+        self.seq = header[4]
+
 def sniff(interface):
     if os.name == 'nt':
         socket_protocol = socket.IPPROTO_IP
@@ -56,8 +65,20 @@ def sniff(interface):
             raw_buffer = sniffer.recvfrom(65565)[0]
             # Create an IP header from the first 20 bytes of the buffer
             ip_header = IP(raw_buffer[0:20])
-            # Print out the protocol that was detected and the hosts
-            print('Protocol: %s %s -> %s' % (ip_header.protocol, ip_header.src_address, ip_header.dst_address))
+            # If it's ICMP, we want it
+            if ip_header.protocol == "ICMP":
+                print('Protocol: %s %s -> %s' % (ip_header.protocol, ip_header.src_address, ip_header.dst_address))
+                print('Version: %s IP Header Length: %s TTL: %s' % (ip_header.ver, ip_header.ihl, ip_header.ttl))
+                
+                # Calculate where our ICMP packet starts
+                offset = ip_header.ihl * 4
+                buf = raw_buffer[offset:offset + 8]
+                # Create our ICMP structure
+                icmp_header = ICMP(buf)
+                print('ICMP -> Type: %d Code: %d' % (icmp_header.type, icmp_header.code))
+            # Otherwise, print the other protocols
+            else:
+                print('Protocol: %s %s -> %s' % (ip_header.protocol, ip_header.src_address, ip_header.dst_address))
     except KeyboardInterrupt:
         # If we're on Windows, turn off promiscuous mode
         if os.name == 'nt':
